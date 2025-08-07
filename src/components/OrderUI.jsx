@@ -1,6 +1,7 @@
-// components/OrderPage.jsx
+/* eslint-disable react/prop-types */
 import { useState } from "react"
 import { useCreateOrder } from "../hooks/remote/useCreateOrder"
+import { useUpdate } from "../hooks/remote/generals/useUpdate"
 import { useGet } from "../hooks/remote/generals/useGet"
 import Spinner from "../ui/Spinner"
 import toast from "react-hot-toast"
@@ -9,11 +10,14 @@ import Image from "../ui/Image"
 import { motion } from 'framer-motion'
 import { Undo2 } from "lucide-react"
 
+export default function OrderUI({ table_id, restaurant_id }) {
+    // console.log(table_id);
+    // console.log(restaurant_id);
 
-
-export default function OrderUI() {
     const { mutate: createOrder, isPending: isCreating, isSuccess } = useCreateOrder()
-    const { data: menuItems, isPending } = useGet(1, 'menu')
+    const { mutate: updateTable } = useUpdate('tables', 'tables')
+
+    const { data: menuItems, isPending } = useGet(restaurant_id, 'menu')
 
     const [selectedItems, setSelectedItems] = useState({})
     const [activeCategory, setActiveCategory] = useState('all')
@@ -63,12 +67,21 @@ export default function OrderUI() {
             }))
 
             createOrder({
-                restaurant_id: 1, table_id: 25, items, notes
+                restaurant_id, table_id, items, notes
             })
             isSuccess && toast.success('done')
             setSelectedItems({})
             setNotes('')
             setShowReview(false)
+            toast.success('done')
+            updateTable(
+                {
+                    match: { id: table_id },
+                    updates: { is_active: true }
+                }
+            )
+
+
         } catch (err) {
             toast.error(err.message)
         }

@@ -1,10 +1,19 @@
 import { Toaster } from "react-hot-toast"
-import OrderUI from "./components/OrderUI"
+import { BrowserRouter, Route, Routes } from "react-router-dom"
+import Main from "./components/Main";
 
 function App() {
+
+
+
+
+
   return (
-    <>
-      <OrderUI />
+    <BrowserRouter>
+      <Routes>
+        <Route index element={<Main />} />
+
+      </Routes>
       <Toaster
         gutter={12}
         containerStyle={{
@@ -25,7 +34,7 @@ function App() {
           },
         }}
       />
-    </>
+    </BrowserRouter>
   )
 }
 

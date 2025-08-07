@@ -54,6 +54,7 @@ export const supaQuery = async (restaurantId, table, options = {}) => {
 
   const { data, error } = await query;
   if (error) throw error;
+
   return data;
 };
 
