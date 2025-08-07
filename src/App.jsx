@@ -1,9 +1,30 @@
+import { Toaster } from "react-hot-toast"
+import OrderUI from "./components/OrderUI"
+
 function App() {
   return (
     <>
-      <h1 className="text-3xl font-bold underline">
-        Hello world!
-      </h1>
+      <OrderUI />
+      <Toaster
+        gutter={12}
+        containerStyle={{
+          width: "100%",
+          top: "35%",
+          left: "50%",
+          translate: "-50% -50%",
+        }}
+        toastOptions={{
+          success: { duration: 3000 },
+          error: { duration: 5000 },
+          style: {
+            fontSize: "1rem",
+            width: "fit-content",
+            padding: "8px 24px",
+            backgroundColor: "white",
+            color: "var(--color-grey-700)",
+          },
+        }}
+      />
     </>
   )
 }

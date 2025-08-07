@@ -1,0 +1,5 @@
+export const SUPABASE_URL = 'https://qfrpinbodmtlxtehwwew.supabase.co'
+export const SUPABASE_API_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmcnBpbmJvZG10bHh0ZWh3d2V3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQzMTQwMTEsImV4cCI6MjA2OTg5MDAxMX0.4MlI4TFStpmkNOSepyOdVowbcQdmaxGD6YwDxiyNJdA'
+
+
+
