@@ -16,7 +16,7 @@ import { useUpdateOrder } from '../hooks/remote/useUpdateOrder';
 export const STATUS_MESSAGES = {
     new: "🚀 Your order is new and being prepared. Thanks for your patience!",
     "in-kitchen": "👨‍🍳 Your order is now cooking with care.",
-    ready: "✅ Your order is ready for pickup. Enjoy your meal!",
+    ready: "✅ Your order is ready. Enjoy your meal!",
     delivered: "🎉 Your order has been delivered. Thank you for choosing us!",
     "billing-requested": "💳 You requested the bill. Preparing your payment.",
     paid: "🙏 Thanks for your payment. Finalizing your order shortly.",

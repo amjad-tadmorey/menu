@@ -106,7 +106,7 @@ export default function OrderUI({ table_id, restaurant_id }) {
                 <textarea
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    placeholder="ملاحظات (اختياري)"
+                    placeholder="Notes"
                     className="w-full mt-1 p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow resize-none shadow-sm"
                     rows={1}
                 />
@@ -116,7 +116,7 @@ export default function OrderUI({ table_id, restaurant_id }) {
                     variant="lg"
                     className="w-full"
                 >
-                    مراجعة ({totalPrice} ج.م)
+                    Review ({totalPrice} EGP)
                 </Button>
             </div>
             <h1 className="text-3xl font-semibold mb-6 text-gray-800">Customer UI</h1>
@@ -208,18 +208,18 @@ export default function OrderUI({ table_id, restaurant_id }) {
                             {Object.values(selectedItems).map((item) => (
                                 <div key={item.id} className="flex justify-between border-b pb-1">
                                     <span>{item.name} × {item.quantity}</span>
-                                    <span>{item.price * item.quantity} ج.م</span>
+                                    <span>{item.price * item.quantity} EGP</span>
                                 </div>
                             ))}
                         </div>
 
                         <div className="mt-4 text-sm text-gray-600">
-                            <p><strong>notes:</strong> {notes || "لا يوجد"}</p>
+                            <p><strong>notes:</strong> {notes || "-"}</p>
                         </div>
 
                         <div className="mt-4 flex justify-between items-center text-lg font-bold">
                             <span>Total:</span>
-                            <span className="text-green-600">{totalPrice} ج.م</span>
+                            <span className="text-green-600">{totalPrice} EGP</span>
                         </div>
 
                         <Button
