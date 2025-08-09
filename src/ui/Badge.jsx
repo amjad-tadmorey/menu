@@ -10,13 +10,13 @@ const STATUS_COLORS = {
     completed: "bg-green-600 text-white",
 };
 
-export default function Badge({ status }) {
+export default function Badge({ status, size = 'xs' }) {
     const color = STATUS_COLORS[status] || "bg-gray-100 text-gray-800";
     const label = status.replace("-", " ");
 
     return (
         <span
-            className={`text-xs px-2 py-1 rounded-full font-medium capitalize ${color}`}
+            className={`px-2 py-1 rounded-full font-medium capitalize ${color} text-${size}`}
         >
             {label}
         </span>

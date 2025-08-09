@@ -1,6 +1,7 @@
 import { Toaster } from "react-hot-toast"
 import { BrowserRouter, Route, Routes } from "react-router-dom"
 import Main from "./components/Main";
+import TrackUI from "./components/TrackUI";
 
 function App() {
 
@@ -12,7 +13,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route index element={<Main />} />
-
+        <Route path="/track" element={<TrackUI />} />
       </Routes>
       <Toaster
         gutter={12}

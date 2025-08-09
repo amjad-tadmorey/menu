@@ -11,10 +11,7 @@ import { motion } from 'framer-motion'
 import { Undo2 } from "lucide-react"
 
 export default function OrderUI({ table_id, restaurant_id }) {
-    // console.log(table_id);
-    // console.log(restaurant_id);
-
-    const { mutate: createOrder, isPending: isCreating, isSuccess } = useCreateOrder()
+    const { mutate: createOrder, isPending: isCreating } = useCreateOrder()
     const { mutate: updateTable } = useUpdate('tables', 'tables')
 
     const { data: menuItems, isPending } = useGet(restaurant_id, 'menu')
@@ -64,30 +61,38 @@ export default function OrderUI({ table_id, restaurant_id }) {
                 menu_id: item.id,
                 quantity: item.quantity,
                 unit_price: item.price,
-            }))
+            }));
 
-            createOrder({
-                restaurant_id, table_id, items, notes
-            })
-            isSuccess && toast.success('done')
-            setSelectedItems({})
-            setNotes('')
-            setShowReview(false)
-            toast.success('done')
-            updateTable(
-                {
-                    match: { id: table_id },
-                    updates: { is_active: true }
+            await createOrder({
+                restaurant_id,
+                table_id,
+                items,
+                notes,
+            }, {
+                onSuccess: (order) => {
+                    try {
+                        toast.success("done");
+                        setSelectedItems({});
+                        setNotes("");
+                        setShowReview(false);
+                        updateTable({
+                            match: { id: table_id },
+                            updates: { is_active: true, active_order: order.id },
+                        });
+                    } catch (err) {
+                        console.error("updateTable error:", err);
+                    }
                 }
-            )
+            });
 
 
         } catch (err) {
-            toast.error(err.message)
+            toast.error(err.message);
         }
-    }
+    };
 
     if (isPending) return <Spinner />
+
 
     const categories = ['all', ...new Set(menuItems?.map((item) => item.category))]
 

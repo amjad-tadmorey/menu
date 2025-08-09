@@ -16,7 +16,6 @@ export default function Main() {
 
     const table = tablesData.filter(table => table.id === table_id_params)[0]
 
-
     return (
         <>
             {

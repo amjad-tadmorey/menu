@@ -75,9 +75,10 @@ export async function supaDelete(table, match) {
 
 // 🟢 UPDATE
 export async function supaUpdate(table, match, updates) {
-
+  console.log(table, match, updates);
   const { data, error } = await supabase.from(table).update(updates).match(match)
   if (error) throw error
+  console.log(data);
   return data
 }
 

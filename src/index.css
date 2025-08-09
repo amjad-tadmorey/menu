@@ -1,1 +1,51 @@
 @import "tailwindcss";
+
+
+.circle {
+  stroke-dasharray: 1194;
+  stroke-dashoffset: 1194;
+  animation: dc .5s ease-in-out forwards;
+}
+
+.tick {
+  stroke-dasharray: 350;
+  stroke-dashoffset: 350;
+  animation: dt 0.5s ease-out forwards;
+  animation-delay: 0.95s;
+}
+
+@keyframes dc {
+  from {
+    stroke-dashoffset: 1194;
+  }
+  to {
+    stroke-dashoffset: 2388;
+  }
+}
+
+@keyframes dt {
+  from {
+    stroke-dashoffset: 350;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes spin-custom {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* smoother cubic-bezier */
+.spinner {
+  display: inline-block;
+  animation: spin-custom 2.8s cubic-bezier(0.25, 0.1, 0.25, 1) infinite;
+  will-change: transform;
+  backface-visibility: hidden;
+  transform-origin: center;
+}
