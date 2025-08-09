@@ -2,6 +2,33 @@ import { endOfDay, startOfDay } from "date-fns"
 import { supabase } from "./supabase"
 
 
+export async function fetchOrderWithFullDetails(id) {
+    const { data, error } = await supabase
+        .from('orders')
+        .select(`
+      *,
+      table:table_id (
+        table_number
+      ),
+      order_items (
+        id,
+        quantity,
+        unit_price,
+        menu:menu_id (
+          id,
+          name,
+          price
+        )
+      )
+    `).eq('id', id)
+        .order('created_at', { ascending: true });
+
+    if (error) {
+        console.error('❌ Error fetching detailed orders:', error.message);
+        throw error;
+    }
+    return data;
+}
 
 
 // ─────────────────────────────────────────────
@@ -78,22 +105,49 @@ export async function createOrder({ restaurant_id, table_id, items = [], notes }
     return newOrder
 }
 
-
 //
 
 // ─────────────────────────────────────────────
 // ✅ . Update Order
-export async function updateOrder(orderId, updatedFields) {
-    const { data, error } = await supabase
-        .from('orders')
-        .update(updatedFields)
-        .eq('id', orderId)
-        .select();
+export async function updateOrder(orderId, { notes, status, items = [] }) {
+    if (!orderId) throw new Error('orderId is required');
 
-    if (error) {
-        console.error(error.message);
-        throw new Error(error.message);
+    const { data: updatedOrder, error: updateError } = await supabase
+        .from('orders')
+        .update({ notes, status })
+        .eq('id', orderId)
+        .select()
+        .single();
+
+    if (updateError) {
+        throw new Error('Error updating order: ' + updateError.message);
     }
 
-    return data?.[0];
+    const { error: deleteItemsError } = await supabase
+        .from('order_items')
+        .delete()
+        .eq('order_id', orderId);
+
+    if (deleteItemsError) {
+        throw new Error('Error deleting old order items: ' + deleteItemsError.message);
+    }
+
+    if (items.length > 0) {
+        const orderItems = items.map((item) => ({
+            order_id: orderId,
+            menu_id: item.menu_id,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+        }));
+
+        const { error: insertItemsError } = await supabase
+            .from('order_items')
+            .insert(orderItems);
+
+        if (insertItemsError) {
+            throw new Error('Error inserting order items: ' + insertItemsError.message);
+        }
+    }
+
+    return updatedOrder;
 }

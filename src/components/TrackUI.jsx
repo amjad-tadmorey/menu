@@ -18,5 +18,5 @@ export default function TrackUI() {
     if (isPendingTable) return <Spinner />;
 
     const order_id = table[0].active_order
-    return <TrackContent order_id={order_id} restaurant_id={restaurant_id_params} />
+    return <TrackContent order_id={order_id} restaurant_id={restaurant_id_params} table_id={table_id_params} />
 }

@@ -1,61 +1,75 @@
 /* eslint-disable react/prop-types */
-import { useState } from "react"
-import { useCreateOrder } from "../hooks/remote/useCreateOrder"
-import { useUpdate } from "../hooks/remote/generals/useUpdate"
-import { useGet } from "../hooks/remote/generals/useGet"
-import Spinner from "../ui/Spinner"
-import toast from "react-hot-toast"
-import Button from "../ui/Button"
-import Image from "../ui/Image"
-import { motion } from 'framer-motion'
-import { Undo2 } from "lucide-react"
+import { useState, useEffect } from "react";
+import { useGet } from "../hooks/remote/generals/useGet";
+import Spinner from "../ui/Spinner";
+import toast from "react-hot-toast";
+import Button from "../ui/Button";
+import Image from "../ui/Image";
+import { motion } from "framer-motion";
+import { Undo2 } from "lucide-react";
+import { useUpdateOrder } from "../hooks/remote/useUpdateOrder";
 
-export default function OrderUI({ table_id, restaurant_id }) {
-    const { mutate: createOrder, isPending: isCreating } = useCreateOrder()
-    const { mutate: updateTable } = useUpdate('tables', 'tables')
+export default function EditUI({ restaurant_id, initialOrderData, }) {
+    const { mutate: updateOrder, isPending: isCreating } = useUpdateOrder();
 
-    const { data: menuItems, isPending } = useGet(restaurant_id, 'menu')
+    const { data: menuItems, isPending } = useGet(restaurant_id, "menu");
 
-    const [selectedItems, setSelectedItems] = useState({})
-    const [activeCategory, setActiveCategory] = useState('all')
-    const [notes, setNotes] = useState('')
+    const [selectedItems, setSelectedItems] = useState({});
+    const [activeCategory, setActiveCategory] = useState("all");
+    const [notes, setNotes] = useState("");
+    const [showReview, setShowReview] = useState(false);
 
-    const [showReview, setShowReview] = useState(false)
+    useEffect(() => {
+        if (initialOrderData) {
+            const initialSelected = {};
+            initialOrderData.order_items.forEach((item) => {
+                initialSelected[item.menu.id] = {
+                    ...item.menu,
+                    quantity: item.quantity,
+                    price: item.unit_price,
+                };
+            });
+            setSelectedItems(initialSelected);
+            setNotes(initialOrderData.notes || "");
+        }
+    }, [initialOrderData]);
 
     const handleAddToOrder = (item) => {
         setSelectedItems((prev) => ({
             ...prev,
-            [item.id]: { ...item, quantity: 1 },
-        }))
-    }
+            [item.id]: { ...item, quantity: 1, price: item.price },
+        }));
+    };
 
     const handleQuantityChange = (menu_id, delta) => {
         setSelectedItems((prev) => {
-            const current = prev[menu_id]
-            const newQty = current.quantity + delta
+            const current = prev[menu_id];
+            if (!current) return prev;
+            const newQty = current.quantity + delta;
             if (newQty <= 0) {
-                const updated = { ...prev }
-                delete updated[menu_id]
-                return updated
+                const updated = { ...prev };
+                delete updated[menu_id];
+                return updated;
             }
             return {
                 ...prev,
                 [menu_id]: { ...current, quantity: newQty },
-            }
-        })
-    }
+            };
+        });
+    };
 
     const totalPrice = Object.values(selectedItems).reduce(
         (sum, item) => sum + item.price * item.quantity,
         0
-    )
+    );
 
     const handleSubmit = () => {
-        if (Object.keys(selectedItems).length === 0) return toast.error("أضف عناصر أولاً")
-        setShowReview(true)
-    }
+        if (Object.keys(selectedItems).length === 0)
+            return toast.error("أضف عناصر أولاً");
+        setShowReview(true);
+    };
 
-    const handleCreateOrder = async () => {
+    const handleUpdateOrder = async () => {
         try {
             const items = Object.values(selectedItems).map((item) => ({
                 menu_id: item.id,
@@ -63,42 +77,51 @@ export default function OrderUI({ table_id, restaurant_id }) {
                 unit_price: item.price,
             }));
 
-            await createOrder({
-                restaurant_id,
-                table_id,
-                items,
-                notes,
-            }, {
-                onSuccess: (order) => {
+            await updateOrder(
+                {
+                    orderId: initialOrderData.id,
+                    updatedFields: {
+                        items,
+                        notes,
+                    }
+
+                }, {
+
+                onSuccess: () => {
                     try {
                         toast.success("done");
                         setSelectedItems({});
                         setNotes("");
                         setShowReview(false);
-                        updateTable({
-                            match: { id: table_id },
-                            updates: { is_active: true, active_order: order.id },
-                        });
+
                     } catch (err) {
                         console.error("updateTable error:", err);
                     }
-                }
-            });
-
-
+                },
+            }
+            );
         } catch (err) {
             toast.error(err.message);
         }
     };
 
-    if (isPending) return <Spinner />
+    if (isPending) return <Spinner />;
 
+    const categories = ["all", ...new Set(menuItems?.map((item) => item.category))];
 
-    const categories = ['all', ...new Set(menuItems?.map((item) => item.category))]
+    const filteredMenu =
+        activeCategory === "all"
+            ? menuItems
+            : menuItems.filter((item) => item.category === activeCategory);
 
-    const filteredMenu = activeCategory === 'all'
-        ? menuItems
-        : menuItems.filter((item) => item.category === activeCategory)
+    const sortedMenu = filteredMenu.sort((a, b) => {
+        const aSelected = !!selectedItems[a.id];
+        const bSelected = !!selectedItems[b.id];
+
+        if (aSelected && !bSelected) return -1;
+        if (!aSelected && bSelected) return 1;
+        return 0;
+    });
 
     return (
         <div className="w-full mx-auto p-6 bg-white rounded-lg shadow-md mb-[143px]">
@@ -119,7 +142,9 @@ export default function OrderUI({ table_id, restaurant_id }) {
                     مراجعة ({totalPrice} ج.م)
                 </Button>
             </div>
-            <h1 className="text-3xl font-semibold mb-6 text-gray-800">Customer UI</h1>
+
+            <h1 className="text-3xl font-semibold mb-6 text-gray-800">
+            </h1>
 
             <div className="flex gap-2 mb-6 overflow-x-auto scrollbar-hide">
                 {categories.map((cat) => (
@@ -135,9 +160,10 @@ export default function OrderUI({ table_id, restaurant_id }) {
                     </button>
                 ))}
             </div>
+
             <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {filteredMenu.map((item) => {
-                    const selected = selectedItems[item.id]
+                {sortedMenu.map((item) => {
+                    const selected = selectedItems[item.id];
                     return (
                         <div
                             key={item.id}
@@ -148,10 +174,9 @@ export default function OrderUI({ table_id, restaurant_id }) {
                                 alt={item.name}
                                 className="w-full h-25 object-cover"
                             />
-
                             <div className="p-4 flex flex-col items-center">
                                 <h2 className="text-xs font-semibold text-center">{item.name}</h2>
-                                <p className="text-sm text-gray-600 mb-2">{item.price} EGP</p>
+                                <p className="text-sm text-gray-600 mb-2">{item.price} ج.م</p>
 
                                 {selected ? (
                                     <div className="flex items-center space-x-2 rtl:space-x-reverse">
@@ -173,14 +198,13 @@ export default function OrderUI({ table_id, restaurant_id }) {
                                     <button
                                         onClick={() => handleAddToOrder(item)}
                                         className="bg-green-600 text-sm text-white mt-2 px-4 py-2 rounded hover:bg-green-700 transition"
-
                                     >
                                         Add
                                     </button>
                                 )}
                             </div>
                         </div>
-                    )
+                    );
                 })}
             </div>
 
@@ -193,7 +217,6 @@ export default function OrderUI({ table_id, restaurant_id }) {
                     className="fixed inset-0 z-50 bg-opacity-30 backdrop-blur-xs flex justify-center items-end"
                     onClick={() => setShowReview(false)}
                 >
-
                     <motion.div
                         initial={{ y: 100 }}
                         animate={{ y: 0 }}
@@ -202,39 +225,47 @@ export default function OrderUI({ table_id, restaurant_id }) {
                         className="w-full max-h-[90vh] bg-white rounded-t-xl p-6 overflow-auto relative"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <h2 className="text-xl font-semibold mb-4">Review order</h2>
+                        <h2 className="text-xl font-semibold mb-4">مراجعة الطلب</h2>
 
                         <div className="space-y-2 text-sm">
                             {Object.values(selectedItems).map((item) => (
                                 <div key={item.id} className="flex justify-between border-b pb-1">
-                                    <span>{item.name} × {item.quantity}</span>
+                                    <span>
+                                        {item.name} × {item.quantity}
+                                    </span>
                                     <span>{item.price * item.quantity} ج.م</span>
                                 </div>
                             ))}
                         </div>
 
                         <div className="mt-4 text-sm text-gray-600">
-                            <p><strong>notes:</strong> {notes || "لا يوجد"}</p>
+                            <p>
+                                <strong>ملاحظات:</strong> {notes || "لا يوجد"}
+                            </p>
                         </div>
 
                         <div className="mt-4 flex justify-between items-center text-lg font-bold">
-                            <span>Total:</span>
+                            <span>المجموع:</span>
                             <span className="text-green-600">{totalPrice} ج.م</span>
                         </div>
 
                         <Button
-                            onClick={handleCreateOrder}
+                            onClick={handleUpdateOrder}
                             disabled={isCreating}
                             className="w-full mt-6"
                         >
-                            Submit
+                            تعديل الطلب
                         </Button>
 
-                        <button onClick={() => setShowReview(false)} className=" absolute top-2 right-2 text-2xl" ><Undo2 /></button>
+                        <button
+                            onClick={() => setShowReview(false)}
+                            className=" absolute top-2 right-2 text-2xl"
+                        >
+                            <Undo2 />
+                        </button>
                     </motion.div>
                 </motion.div>
             )}
-
         </div>
-    )
+    );
 }

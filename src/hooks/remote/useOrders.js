@@ -1,8 +1,8 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery } from "@tanstack/react-query";
 
-export function useOrders(fetchFn, key = 'orders') {
+export function useOrders(fetchFn, queryKey = ['orders']) {
     return useQuery({
-        queryKey: [key],
+        queryKey,
         queryFn: fetchFn,
-    })
+    });
 }
