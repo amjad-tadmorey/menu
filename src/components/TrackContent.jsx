@@ -150,7 +150,7 @@ export default function TrackContent({ order_id, restaurant_id, table_id }) {
                         </button>
 
                         <div className='p-6 shadow-lg rounded-2xl mx-2'>
-                            <h2 className="text-2xl font-semibold mb-4 text-center">طلب الحساب</h2>
+                            <h2 className="text-2xl font-semibold mb-4 text-center">Checkout</h2>
 
                             <div className="max-h-64 overflow-y-auto mb-4">
                                 {order.order_items.map((item) => (
@@ -161,14 +161,14 @@ export default function TrackContent({ order_id, restaurant_id, table_id }) {
                                         <span>
                                             {item.menu.name} × {item.quantity}
                                         </span>
-                                        <span>{item.unit_price * item.quantity} ج.م</span>
+                                        <span>{item.unit_price * item.quantity} EGP</span>
                                     </div>
                                 ))}
                             </div>
 
                             <div className="flex justify-between font-bold text-lg mb-6">
                                 <span>Total:</span>
-                                <span className="text-green-600">{order.total_price} ج.م</span>
+                                <span className="text-green-600">{order.total_price} EGP</span>
                             </div>
 
                             <div className="flex gap-4">

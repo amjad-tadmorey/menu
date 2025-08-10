@@ -51,7 +51,7 @@ export default function OrderUI({ table_id, restaurant_id }) {
     )
 
     const handleSubmit = () => {
-        if (Object.keys(selectedItems).length === 0) return toast.error("أضف عناصر أولاً")
+        if (Object.keys(selectedItems).length === 0) return toast.error("please add items")
         setShowReview(true)
     }
 
