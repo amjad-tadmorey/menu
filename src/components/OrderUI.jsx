@@ -119,7 +119,7 @@ export default function OrderUI({ table_id, restaurant_id }) {
                     Review ({totalPrice} EGP)
                 </Button>
             </div>
-            <h1 className="text-3xl font-semibold mb-6 text-gray-800">Customer UI</h1>
+            <h1 className="text-3xl font-semibold mb-6 text-gray-800"></h1>
 
             <div className="flex gap-2 mb-6 overflow-x-auto scrollbar-hide">
                 {categories.map((cat) => (
