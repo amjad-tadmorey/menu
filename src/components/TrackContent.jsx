@@ -27,7 +27,9 @@ export default function TrackContent({ order_id, restaurant_id, table_id }) {
     const [showEdit, setShowEdit] = useState(false);
     const [showAdd, setShowAdd] = useState(false);
     const [showCheck, setShowCheck] = useState(false);
-
+    console.log(showAdd);
+    console.log(showEdit);
+    
     const queryClient = useQueryClient();
     const { mutate: updateOrder } = useUpdateOrder();
     const { data, isPending } = useOrders(() => fetchOrderWithFullDetails(order_id), ['orders', order_id]);
@@ -95,7 +97,7 @@ export default function TrackContent({ order_id, restaurant_id, table_id }) {
                     >
                         <button
                             onClick={() => setShowEdit(false)}
-                            className="absolute top-2 right-4 text-xl font-bold p-1 bg-gray-200 rounded"
+                            className="absolute top-2 right-4 text-xl font-bold p-1 bg-gray-200 rounded z-[9999]"
                         >
                             ×
                         </button>
@@ -118,7 +120,7 @@ export default function TrackContent({ order_id, restaurant_id, table_id }) {
                     >
                         <button
                             onClick={() => setShowAdd(false)}
-                            className="absolute top-2 right-4 text-xl font-bold p-1 bg-gray-200 rounded"
+                            className="absolute top-2 right-4 text-xl font-bold p-1 bg-gray-200 rounded z-[9999]"
                         >
                             ×
                         </button>
