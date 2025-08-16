@@ -1,159 +1,174 @@
 /* eslint-disable react/prop-types */
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useGet } from "../hooks/remote/generals/useGet";
+import { useUpdateOrder } from "../hooks/remote/useUpdateOrder";
 import Spinner from "../ui/Spinner";
 import toast from "react-hot-toast";
-import Button from "../ui/Button";
-import Image from "../ui/Image";
-import { motion } from "framer-motion";
-import { Undo2 } from "lucide-react";
-import { useUpdateOrder } from "../hooks/remote/useUpdateOrder";
+import { motion, AnimatePresence } from "framer-motion";
+import { ShoppingCart, X } from "lucide-react";
 
-export default function EditUI({ restaurant_id, initialOrderData, }) {
-    const { mutate: updateOrder, isPending: isCreating } = useUpdateOrder();
+export default function EditUI({ order }) {
+    // ---- Derive ids from the received order prop
+    const restaurant_id = order?.restaurant_id;
+    console.log(restaurant_id);
 
+    const table_id = order?.table_id;
+
+    // ---- Fetch full menu so user can add new items
     const { data: menuItems, isPending } = useGet(restaurant_id, "menu");
 
+    // ---- Update hook for saving changes
+    const { mutate: updateOrder, isPending: isUpdating } = useUpdateOrder();
+
+    // ---- Local state
     const [selectedItems, setSelectedItems] = useState({});
     const [activeCategory, setActiveCategory] = useState("all");
-    const [notes, setNotes] = useState("");
     const [showReview, setShowReview] = useState(false);
+    const [expanded, setExpanded] = useState(null);
+    const [notes, setNotes] = useState(order?.notes || "");
 
+    // ---- Preload existing order items into local cart state
     useEffect(() => {
-        if (initialOrderData) {
-            const initialSelected = {};
-            initialOrderData.order_items.forEach((item) => {
-                initialSelected[item.menu.id] = {
-                    ...item.menu,
-                    quantity: item.quantity,
-                    price: item.unit_price,
-                };
-            });
-            setSelectedItems(initialSelected);
-            setNotes(initialOrderData.notes || "");
-        }
-    }, [initialOrderData]);
+        if (!order) return;
+        const mapped = {};
+        (order.order_items || []).forEach((oi) => {
+            const m = oi.menu;
+            mapped[m.id] = {
+                id: m.id,
+                name: (m.name || "").trim(),
+                price: oi.unit_price ?? m.price ?? 0,
+                quantity: oi.quantity ?? 1,
+                image_url: m.image_url,
+                category: m.category,
+            };
+        });
+        setSelectedItems(mapped);
+        setNotes(order.notes || "");
+    }, [order]);
 
-    const handleAddToOrder = (item) => {
+    // ---- Helpers
+    const handleAdd = (item) => {
         setSelectedItems((prev) => ({
             ...prev,
-            [item.id]: { ...item, quantity: 1, price: item.price },
+            [item.id]: {
+                ...item,
+                name: (item.name || "").trim(),
+                price: item.price ?? 0,
+                quantity: (prev[item.id]?.quantity || 0) + 1,
+            },
         }));
     };
 
-    const handleQuantityChange = (menu_id, delta) => {
+    const handleQuantity = (id, delta) => {
         setSelectedItems((prev) => {
-            const current = prev[menu_id];
-            if (!current) return prev;
-            const newQty = current.quantity + delta;
+            const current = prev[id];
+            const newQty = (current?.quantity || 0) + delta;
             if (newQty <= 0) {
-                const updated = { ...prev };
-                delete updated[menu_id];
-                return updated;
+                const copy = { ...prev };
+                delete copy[id];
+                return copy;
             }
-            return {
-                ...prev,
-                [menu_id]: { ...current, quantity: newQty },
-            };
+            return { ...prev, [id]: { ...current, quantity: newQty } };
         });
     };
 
-    const totalPrice = Object.values(selectedItems).reduce(
-        (sum, item) => sum + item.price * item.quantity,
-        0
-    );
-
-    const handleSubmit = () => {
-        if (Object.keys(selectedItems).length === 0)
-            return toast.error("أضف عناصر أولاً");
-        setShowReview(true);
+    const removeItem = (id) => {
+        setSelectedItems((prev) => {
+            const copy = { ...prev };
+            delete copy[id];
+            return copy;
+        });
     };
 
-    const handleUpdateOrder = async () => {
-        try {
-            const items = Object.values(selectedItems).map((item) => ({
-                menu_id: item.id,
-                quantity: item.quantity,
-                unit_price: item.price,
-            }));
+    const total = useMemo(
+        () => Object.values(selectedItems).reduce((sum, i) => sum + i.price * i.quantity, 0),
+        [selectedItems]
+    );
 
-            await updateOrder(
-                {
-                    orderId: initialOrderData.id,
-                    updatedFields: {
-                        items,
-                        notes,
-                    }
+    const categories = useMemo(() => {
+        const cats = new Set();
+        (menuItems || []).forEach((i) => i?.category && cats.add(i.category));
+        return ["all", ...Array.from(cats)];
+    }, [menuItems]);
 
-                }, {
+    const filtered = useMemo(() => {
+        const list =
+            activeCategory === "all"
+                ? menuItems || []
+                : (menuItems || []).filter((i) => i.category === activeCategory);
 
+        // sort so selected ones appear first
+        return list.slice().sort((a, b) => {
+            const as = !!selectedItems[a.id];
+            const bs = !!selectedItems[b.id];
+            if (as && !bs) return -1;
+            if (!as && bs) return 1;
+            return 0;
+        });
+    }, [menuItems, activeCategory, selectedItems]);
+
+    // ---- Submit update
+    const submitUpdate = async () => {
+        if (!Object.keys(selectedItems).length) {
+            toast.error("Add items first");
+            return;
+        }
+
+        const items = Object.values(selectedItems).map((i) => ({
+            menu_id: i.id,
+            quantity: i.quantity,
+            unit_price: i.price,
+        }));
+
+        updateOrder(
+            {
+                orderId: order.id,
+                updatedFields: {
+                    items,
+                    notes,
+                    // total_price can be sent if your RPC expects it; otherwise backend can compute
+                    total_price: total,
+                },
+            },
+            {
                 onSuccess: () => {
-                    try {
-                        toast.success("done");
-                        setSelectedItems({});
-                        setNotes("");
-                        setShowReview(false);
-
-                    } catch (err) {
-                        console.error("updateTable error:", err);
-                    }
+                    toast.success("Order updated");
+                    setShowReview(false);
+                    location.reload()
+                },
+                onError: (e) => {
+                    console.error(e);
+                    toast.error("Failed to update order");
                 },
             }
-            );
-        } catch (err) {
-            toast.error(err.message);
-        }
+        );
     };
 
     if (isPending) return <Spinner />;
 
-    const categories = ["all", ...new Set(menuItems?.map((item) => item.category))];
-
-    const filteredMenu =
-        activeCategory === "all"
-            ? menuItems
-            : menuItems.filter((item) => item.category === activeCategory);
-
-    const sortedMenu = filteredMenu.sort((a, b) => {
-        const aSelected = !!selectedItems[a.id];
-        const bSelected = !!selectedItems[b.id];
-
-        if (aSelected && !bSelected) return -1;
-        if (!aSelected && bSelected) return 1;
-        return 0;
-    });
-
     return (
-        <div className="w-full mx-auto p-6 bg-white rounded-lg shadow-md mb-[143px]">
-            <div className="fixed bottom-0 left-0 w-full bg-white shadow-inner p-4 border-t border-gray-300 flex flex-col gap-2 z-50">
-                <textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="ملاحظات (اختياري)"
-                    className="w-full mt-1 p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow resize-none shadow-sm"
-                    rows={1}
-                />
-                <Button
-                    onClick={handleSubmit}
-                    disabled={isCreating}
-                    variant="lg"
-                    className="w-full"
-                >
-                    مراجعة ({totalPrice} ج.م)
-                </Button>
-            </div>
+        <div className="w-full min-h-screen bg-black text-white flex flex-col bg-gradient-to-br from-[#6b3f2f] via-[#8e5440] to-[#d18b73]
+">
+            {/* Header */}
+            <header className="p-4 bg-transparent sticky top-0 z-40 flex justify-between items-center border-b border-white/10">
+                <div className="flex flex-col">
+                    <h1 className="text-xl font-bold">Edit Order #{order?.order_number ?? order?.id}</h1>
+                    <span className="text-xs opacity-60">
+                        Status: {order?.status ?? "—"}
+                    </span>
+                </div>
+                {/* <div className="text-sm opacity-70">Table {order?.table?.table_number ?? table_id}</div> */}
+            </header>
 
-            <h1 className="text-3xl font-semibold mb-6 text-gray-800">
-            </h1>
-
-            <div className="flex gap-2 mb-6 overflow-x-auto scrollbar-hide">
+            {/* Categories */}
+            <div className="flex gap-3 px-4 py-3 overflow-x-auto scrollbar-hide sticky top-[65px] z-30 bg-transparent">
                 {categories.map((cat) => (
                     <button
                         key={cat}
                         onClick={() => setActiveCategory(cat)}
-                        className={`px-4 py-2 rounded-full border text-sm whitespace-nowrap transition-all ${activeCategory === cat
-                            ? "bg-[#6EC1F6] text-white"
-                            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
+                        className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${activeCategory === cat
+                            ? "bg-white text-black"
+                            : "bg-white/10 text-white hover:bg-white/20"
                             }`}
                     >
                         {cat}
@@ -161,111 +176,212 @@ export default function EditUI({ restaurant_id, initialOrderData, }) {
                 ))}
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {sortedMenu.map((item) => {
-                    const selected = selectedItems[item.id];
-                    return (
-                        <div
-                            key={item.id}
-                            className="rounded-xl shadow-md hover:shadow-lg transition-all overflow-hidden bg-white"
-                        >
-                            <Image
+            {/* Menu - FULL WIDTH SCROLL */}
+            <div className="flex flex-col pb-28">
+                {filtered?.map((item) => (
+                    <motion.div
+                        key={item.id}
+                        className="relative w-full h-[280px] mb-4 cursor-pointer"
+                        onClick={() => setExpanded(item)}
+                    >
+                        {/* image */}
+                        {item.image_url ? (
+                            <img
                                 src={item.image_url}
                                 alt={item.name}
-                                className="w-full h-25 object-cover"
+                                className="w-full h-full object-cover rounded-xl"
                             />
-                            <div className="p-4 flex flex-col items-center">
-                                <h2 className="text-xs font-semibold text-center">{item.name}</h2>
-                                <p className="text-sm text-gray-600 mb-2">{item.price} ج.م</p>
+                        ) : (
+                            <div className="w-full h-full rounded-xl bg-gradient-to-br from-zinc-800 to-zinc-700" />
+                        )}
+                        {/* overlay */}
+                        <div className="absolute inset-0 bg-black/40 rounded-xl flex flex-col justify-end p-4">
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-lg font-bold line-clamp-1">{(item.name || "").trim()}</h2>
+                                {selectedItems[item.id] && (
+                                    <span className="text-xs bg-white/90 text-black px-2 py-0.5 rounded-full">
+                                        × {selectedItems[item.id].quantity}
+                                    </span>
+                                )}
+                            </div>
+                            <span className="text-sm opacity-80">{item.price} EGP</span>
+                        </div>
+                    </motion.div>
+                ))}
+            </div>
 
-                                {selected ? (
-                                    <div className="flex items-center space-x-2 rtl:space-x-reverse">
+            {/* Bottom Cart */}
+            {Object.keys(selectedItems).length > 0 && (
+                <motion.div
+                    initial={{ y: 80 }}
+                    animate={{ y: 0 }}
+                    className="fixed bottom-0 left-0 w-full bg-white text-black shadow-xl p-4 flex justify-between items-center z-50"
+                >
+                    <div className="flex items-center gap-2">
+                        <ShoppingCart className="w-5 h-5" />
+                        <span className="font-medium">{total} EGP</span>
+                    </div>
+                    <button
+                        onClick={() => setShowReview(true)}
+                        className="bg-black text-white px-5 py-2 rounded-full font-medium hover:bg-gray-800"
+                    >
+                        Review Changes
+                    </button>
+                </motion.div>
+            )}
+
+            {/* Expanded Dish Bottom Sheet */}
+            <AnimatePresence>
+                {expanded && (
+                    <motion.div
+                        initial={{ y: "100%" }}
+                        animate={{ y: 0 }}
+                        exit={{ y: "100%" }}
+                        transition={{ type: "spring", stiffness: 120, damping: 20 }}
+                        className="fixed inset-x-0 bottom-0 bg-white text-black rounded-t-3xl shadow-2xl z-[100]"
+                    >
+                        <div className="p-6 space-y-4">
+                            <div className="flex justify-between items-center">
+                                <h2 className="text-xl font-bold">{(expanded.name || "").trim()}</h2>
+                                <button onClick={() => setExpanded(null)}>
+                                    <X className="w-5 h-5 text-gray-600" />
+                                </button>
+                            </div>
+                            {expanded.description && (
+                                <p className="text-sm text-gray-600">{expanded.description}</p>
+                            )}
+                            <div className="flex justify-between items-center">
+                                <span className="text-lg font-semibold">
+                                    {expanded.price} EGP
+                                </span>
+                                {selectedItems[expanded.id] ? (
+                                    <div className="flex items-center bg-gray-100 rounded-full px-2">
                                         <button
-                                            onClick={() => handleQuantityChange(item.id, -1)}
-                                            className="bg-gray-300 px-3 py-1 rounded text-lg"
+                                            onClick={() => handleQuantity(expanded.id, -1)}
+                                            className="px-3 text-lg"
                                         >
                                             -
                                         </button>
-                                        <span className="font-medium">{selected.quantity}</span>
+                                        <span className="px-2 text-sm">
+                                            {selectedItems[expanded.id].quantity}
+                                        </span>
                                         <button
-                                            onClick={() => handleQuantityChange(item.id, 1)}
-                                            className="bg-blue-500 text-white px-3 py-1 rounded text-lg"
+                                            onClick={() => handleQuantity(expanded.id, 1)}
+                                            className="px-3 text-lg"
                                         >
                                             +
                                         </button>
                                     </div>
                                 ) : (
                                     <button
-                                        onClick={() => handleAddToOrder(item)}
-                                        className="bg-green-600 text-sm text-white mt-2 px-4 py-2 rounded hover:bg-green-700 transition"
+                                        onClick={() => handleAdd(expanded)}
+                                        className="bg-black text-white px-4 py-2 rounded-full text-sm"
                                     >
                                         Add
                                     </button>
                                 )}
                             </div>
                         </div>
-                    );
-                })}
-            </div>
-
-            {showReview && (
-                <motion.div
-                    initial={{ y: "100%" }}
-                    animate={{ y: 0 }}
-                    exit={{ y: "100%" }}
-                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                    className="fixed inset-0 z-50 bg-opacity-30 backdrop-blur-xs flex justify-center items-end"
-                    onClick={() => setShowReview(false)}
-                >
-                    <motion.div
-                        initial={{ y: 100 }}
-                        animate={{ y: 0 }}
-                        exit={{ y: 100 }}
-                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                        className="w-full max-h-[90vh] bg-white rounded-t-xl p-6 overflow-auto relative"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <h2 className="text-xl font-semibold mb-4">مراجعة الطلب</h2>
-
-                        <div className="space-y-2 text-sm">
-                            {Object.values(selectedItems).map((item) => (
-                                <div key={item.id} className="flex justify-between border-b pb-1">
-                                    <span>
-                                        {item.name} × {item.quantity}
-                                    </span>
-                                    <span>{item.price * item.quantity} ج.م</span>
-                                </div>
-                            ))}
-                        </div>
-
-                        <div className="mt-4 text-sm text-gray-600">
-                            <p>
-                                <strong>ملاحظات:</strong> {notes || "لا يوجد"}
-                            </p>
-                        </div>
-
-                        <div className="mt-4 flex justify-between items-center text-lg font-bold">
-                            <span>المجموع:</span>
-                            <span className="text-green-600">{totalPrice} ج.م</span>
-                        </div>
-
-                        <Button
-                            onClick={handleUpdateOrder}
-                            disabled={isCreating}
-                            className="w-full mt-6"
-                        >
-                            تعديل الطلب
-                        </Button>
-
-                        <button
-                            onClick={() => setShowReview(false)}
-                            className=" absolute top-2 right-2 text-2xl"
-                        >
-                            <Undo2 />
-                        </button>
                     </motion.div>
-                </motion.div>
-            )}
+                )}
+            </AnimatePresence>
+
+            {/* Review Changes Modal */}
+            <AnimatePresence>
+                {showReview && (
+                    <motion.div
+                        initial={{ y: "100%" }}
+                        animate={{ y: 0 }}
+                        exit={{ y: "100%" }}
+                        transition={{ type: "spring", stiffness: 120, damping: 20 }}
+                        className="fixed inset-x-0 bottom-0 bg-white text-black rounded-t-3xl shadow-2xl z-[200] max-h-[90vh] overflow-y-auto"
+                    >
+                        <div className="p-6 space-y-6">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <h2 className="text-xl font-bold">Review Changes</h2>
+                                    <p className="text-xs text-gray-500">
+                                        Order #{order?.order_number ?? order?.id} — Table{" "}
+                                        {order?.table?.table_number ?? table_id}
+                                    </p>
+                                </div>
+                                <button onClick={() => setShowReview(false)}>
+                                    <X className="w-5 h-5 text-gray-600" />
+                                </button>
+                            </div>
+
+                            {/* Items */}
+                            <div className="space-y-3">
+                                {Object.values(selectedItems).map((item) => (
+                                    <div
+                                        key={item.id}
+                                        className="flex items-center justify-between border-b pb-3 gap-3"
+                                    >
+                                        <div className="min-w-0">
+                                            <p className="font-medium truncate">{item.name}</p>
+                                            <p className="text-xs text-gray-600">
+                                                {item.price} EGP
+                                            </p>
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() => handleQuantity(item.id, -1)}
+                                                className="px-3 py-1 rounded-full border"
+                                            >
+                                                −
+                                            </button>
+                                            <span className="w-6 text-center">{item.quantity}</span>
+                                            <button
+                                                onClick={() => handleQuantity(item.id, 1)}
+                                                className="px-3 py-1 rounded-full border"
+                                            >
+                                                +
+                                            </button>
+                                        </div>
+
+                                        <div className="flex items-center gap-3">
+                                            <span className="font-semibold whitespace-nowrap">
+                                                {item.quantity * item.price} EGP
+                                            </span>
+                                            <button
+                                                onClick={() => removeItem(item.id)}
+                                                className="text-gray-500 hover:text-red-500"
+                                                title="Remove"
+                                            >
+                                                <X className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Notes */}
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Notes</label>
+                                <textarea
+                                    value={notes}
+                                    onChange={(e) => setNotes(e.target.value)}
+                                    placeholder="Add notes (e.g. no onions, extra spicy...)"
+                                    className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                                />
+                            </div>
+
+                            {/* Total + Submit */}
+                            <div className="flex justify-between items-center pt-4 border-t">
+                                <span className="text-lg font-semibold">{total} EGP</span>
+                                <button
+                                    onClick={submitUpdate}
+                                    disabled={isUpdating}
+                                    className="bg-black text-white px-6 py-2 rounded-full font-medium hover:bg-gray-800 disabled:opacity-50"
+                                >
+                                    {isUpdating ? "Saving..." : "Save Changes"}
+                                </button>
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

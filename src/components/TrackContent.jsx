@@ -51,6 +51,7 @@ export default function TrackContent({ order_id, restaurant_id, table_id }) {
     if (isPending) return <Spinner />;
 
     const order = data[0];
+    console.log(order);
 
     const handleCheck = async () => {
         try {
@@ -100,9 +101,7 @@ export default function TrackContent({ order_id, restaurant_id, table_id }) {
                         </button>
 
                         <EditUI
-                            initialOrderData={order}
-                            restaurant_id={restaurant_id}
-                            table_id={table_id}
+                            order={order}
                         />
                     </motion.div>
                 )}

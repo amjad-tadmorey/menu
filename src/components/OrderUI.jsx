@@ -5,236 +5,268 @@ import { useUpdate } from "../hooks/remote/generals/useUpdate"
 import { useGet } from "../hooks/remote/generals/useGet"
 import Spinner from "../ui/Spinner"
 import toast from "react-hot-toast"
-import Button from "../ui/Button"
-import Image from "../ui/Image"
-import { motion } from 'framer-motion'
-import { Undo2 } from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
+import { ShoppingCart, X } from "lucide-react"
 
 export default function OrderUI({ table_id, restaurant_id }) {
-    const { mutate: createOrder, isPending: isCreating } = useCreateOrder()
-    const { mutate: updateTable } = useUpdate('tables', 'tables')
+  const { mutate: createOrder, isPending: isCreating } = useCreateOrder()
+  const { mutate: updateTable } = useUpdate("tables", "tables")
+  const { data: menuItems, isPending } = useGet(restaurant_id, "menu")
 
-    const { data: menuItems, isPending } = useGet(restaurant_id, 'menu')
+  const [selectedItems, setSelectedItems] = useState({})
+  const [activeCategory, setActiveCategory] = useState("all")
+  const [showReview, setShowReview] = useState(false)
+  const [expanded, setExpanded] = useState(null)
+  const [notes, setNotes] = useState("")
 
-    const [selectedItems, setSelectedItems] = useState({})
-    const [activeCategory, setActiveCategory] = useState('all')
-    const [notes, setNotes] = useState('')
+  // --- Add Item
+  const handleAdd = (item) => {
+    setSelectedItems((prev) => ({
+      ...prev,
+      [item.id]: { ...item, quantity: (prev[item.id]?.quantity || 0) + 1 },
+    }))
+  }
 
-    const [showReview, setShowReview] = useState(false)
+  // --- Adjust Qty
+  const handleQuantity = (id, delta) => {
+    setSelectedItems((prev) => {
+      const newQty = (prev[id]?.quantity || 0) + delta
+      if (newQty <= 0) {
+        const copy = { ...prev }
+        delete copy[id]
+        return copy
+      }
+      return { ...prev, [id]: { ...prev[id], quantity: newQty } }
+    })
+  }
 
-    const handleAddToOrder = (item) => {
-        setSelectedItems((prev) => ({
-            ...prev,
-            [item.id]: { ...item, quantity: 1 },
-        }))
-    }
+  // --- Cart total
+  const total = Object.values(selectedItems).reduce(
+    (sum, i) => sum + i.price * i.quantity,
+    0
+  )
 
-    const handleQuantityChange = (menu_id, delta) => {
-        setSelectedItems((prev) => {
-            const current = prev[menu_id]
-            const newQty = current.quantity + delta
-            if (newQty <= 0) {
-                const updated = { ...prev }
-                delete updated[menu_id]
-                return updated
-            }
-            return {
-                ...prev,
-                [menu_id]: { ...current, quantity: newQty },
-            }
-        })
-    }
+  const categories = ["all", ...new Set(menuItems?.map((i) => i.category))]
 
-    const totalPrice = Object.values(selectedItems).reduce(
-        (sum, item) => sum + item.price * item.quantity,
-        0
+  const filtered =
+    activeCategory === "all"
+      ? menuItems
+      : menuItems?.filter((i) => i.category === activeCategory)
+
+  // --- Submit order
+  const submitOrder = async () => {
+    if (!Object.keys(selectedItems).length) return toast.error("Add items first")
+
+    const items = Object.values(selectedItems).map((i) => ({
+      menu_id: i.id,
+      quantity: i.quantity,
+      unit_price: i.price,
+    }))
+
+    await createOrder(
+      { restaurant_id, table_id, items, notes },
+      {
+        onSuccess: (order) => {
+          toast.success("Order placed!")
+          setSelectedItems({})
+          setNotes("")
+          setShowReview(false)
+          updateTable({
+            match: { id: table_id },
+            updates: { is_active: true, active_order: order.id },
+          })
+        },
+        onError: () => toast.error("Failed to place order"),
+      }
     )
+  }
 
-    const handleSubmit = () => {
-        if (Object.keys(selectedItems).length === 0) return toast.error("please add items")
-        setShowReview(true)
-    }
+  if (isPending) return <Spinner />
 
-    const handleCreateOrder = async () => {
-        try {
-            const items = Object.values(selectedItems).map((item) => ({
-                menu_id: item.id,
-                quantity: item.quantity,
-                unit_price: item.price,
-            }));
-
-            await createOrder({
-                restaurant_id,
-                table_id,
-                items,
-                notes,
-            }, {
-                onSuccess: (order) => {
-                    try {
-                        toast.success("done");
-                        setSelectedItems({});
-                        setNotes("");
-                        setShowReview(false);
-                        updateTable({
-                            match: { id: table_id },
-                            updates: { is_active: true, active_order: order.id },
-                        });
-                    } catch (err) {
-                        console.error("updateTable error:", err);
-                    }
-                }
-            });
+  return (
+    <div className="w-full min-h-screen bg-black text-white flex flex-col bg-gradient-to-br from-[#6b3f2f] via-[#8e5440] to-[#d18b73]
 
 
-        } catch (err) {
-            toast.error(err.message);
-        }
-    };
+">
+      {/* Header */}
+      <header className="p-4 bg-transparent sticky top-0 z-40 flex justify-between items-center border-b border-white/10 bg-transparent">
+        <h1 className="text-xl font-bold">La Scala</h1>
+        {/* <div className="text-sm opacity-70">Table {table_id}</div> */}
+      </header>
 
-    if (isPending) return <Spinner />
+      {/* Categories */}
+      <div className="flex gap-3 px-4 py-3 overflow-x-auto scrollbar-hide sticky top-[65px] z-30 bg-transparent">
+        {categories.map((cat) => (
+          <button
+            key={cat}
+            onClick={() => setActiveCategory(cat)}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+              activeCategory === cat
+                ? "bg-white text-black"
+                : "bg-white/10 text-white hover:bg-white/20"
+            }`}
+          >
+            {cat}
+          </button>
+        ))}
+      </div>
 
-
-    const categories = ['all', ...new Set(menuItems?.map((item) => item.category))]
-
-    const filteredMenu = activeCategory === 'all'
-        ? menuItems
-        : menuItems.filter((item) => item.category === activeCategory)
-
-    return (
-        <div className="w-full mx-auto p-6 bg-white rounded-lg shadow-md mb-[143px]">
-            <div className="fixed bottom-0 left-0 w-full bg-white shadow-inner p-4 border-t border-gray-300 flex flex-col gap-2 z-50">
-                <textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Notes"
-                    className="w-full mt-1 p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow resize-none shadow-sm"
-                    rows={1}
-                />
-                <Button
-                    onClick={handleSubmit}
-                    disabled={isCreating}
-                    variant="lg"
-                    className="w-full"
-                >
-                    Review ({totalPrice} EGP)
-                </Button>
+      {/* Menu - FULL WIDTH SCROLL */}
+      <div className="flex flex-col">
+        {filtered?.map((item) => (
+          <motion.div
+            key={item.id}
+            className="relative w-full h-[280px] mb-4 cursor-pointer"
+            onClick={() => setExpanded(item)}
+          >
+            <img
+              src={item.image_url}
+              alt={item.name}
+              className="w-full h-full object-cover rounded-xl"
+            />
+            <div className="absolute inset-0 bg-black/40 rounded-xl flex flex-col justify-end p-4">
+              <h2 className="text-lg font-bold">{item.name}</h2>
+              <span className="text-sm opacity-80">{item.price} EGP</span>
             </div>
-            <h1 className="text-3xl font-semibold mb-6 text-gray-800"></h1>
+          </motion.div>
+        ))}
+      </div>
 
-            <div className="flex gap-2 mb-6 overflow-x-auto scrollbar-hide">
-                {categories.map((cat) => (
+      {/* Bottom Cart */}
+      {Object.keys(selectedItems).length > 0 && (
+        <motion.div
+          initial={{ y: 80 }}
+          animate={{ y: 0 }}
+          className="fixed bottom-0 left-0 w-full bg-white text-black shadow-xl p-4 flex justify-between items-center z-50"
+        >
+          <div className="flex items-center gap-2">
+            <ShoppingCart className="w-5 h-5 text-blue-600" />
+            <span className="font-medium">{total} EGP</span>
+          </div>
+          <button
+            onClick={() => setShowReview(true)}
+            className="bg-black text-white px-5 py-2 rounded-full font-medium hover:bg-gray-800"
+          >
+            Review Order
+          </button>
+        </motion.div>
+      )}
+
+      {/* Expanded Dish Bottom Sheet */}
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", stiffness: 120, damping: 20 }}
+            className="fixed inset-x-0 bottom-0 bg-white text-black rounded-t-3xl shadow-2xl z-[100]"
+          >
+            <div className="p-6 space-y-4">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold">{expanded.name}</h2>
+                <button onClick={() => setExpanded(null)}>
+                  <X className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
+              <p className="text-sm text-gray-600">{expanded.description}</p>
+              <div className="flex justify-between items-center">
+                <span className="text-lg font-semibold text-blue-600">
+                  {expanded.price} EGP
+                </span>
+                {selectedItems[expanded.id] ? (
+                  <div className="flex items-center bg-gray-100 rounded-full px-2">
                     <button
-                        key={cat}
-                        onClick={() => setActiveCategory(cat)}
-                        className={`px-4 py-2 rounded-full border text-sm whitespace-nowrap transition-all ${activeCategory === cat
-                            ? "bg-[#6EC1F6] text-white"
-                            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
-                            }`}
+                      onClick={() => handleQuantity(expanded.id, -1)}
+                      className="px-2 text-lg"
                     >
-                        {cat}
+                      -
                     </button>
-                ))}
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                {filteredMenu.map((item) => {
-                    const selected = selectedItems[item.id]
-                    return (
-                        <div
-                            key={item.id}
-                            className="rounded-xl shadow-md hover:shadow-lg transition-all overflow-hidden bg-white"
-                        >
-                            <Image
-                                src={item.image_url}
-                                alt={item.name}
-                                className="w-full h-25 object-cover"
-                            />
-
-                            <div className="p-4 flex flex-col items-center">
-                                <h2 className="text-xs font-semibold text-center">{item.name}</h2>
-                                <p className="text-sm text-gray-600 mb-2">{item.price} EGP</p>
-
-                                {selected ? (
-                                    <div className="flex items-center space-x-2 rtl:space-x-reverse">
-                                        <button
-                                            onClick={() => handleQuantityChange(item.id, -1)}
-                                            className="bg-gray-300 px-3 py-1 rounded text-lg"
-                                        >
-                                            -
-                                        </button>
-                                        <span className="font-medium">{selected.quantity}</span>
-                                        <button
-                                            onClick={() => handleQuantityChange(item.id, 1)}
-                                            className="bg-blue-500 text-white px-3 py-1 rounded text-lg"
-                                        >
-                                            +
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <button
-                                        onClick={() => handleAddToOrder(item)}
-                                        className="bg-green-600 text-sm text-white mt-2 px-4 py-2 rounded hover:bg-green-700 transition"
-
-                                    >
-                                        Add
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    )
-                })}
-            </div>
-
-            {showReview && (
-                <motion.div
-                    initial={{ y: "100%" }}
-                    animate={{ y: 0 }}
-                    exit={{ y: "100%" }}
-                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                    className="fixed inset-0 z-50 bg-opacity-30 backdrop-blur-xs flex justify-center items-end"
-                    onClick={() => setShowReview(false)}
-                >
-
-                    <motion.div
-                        initial={{ y: 100 }}
-                        animate={{ y: 0 }}
-                        exit={{ y: 100 }}
-                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                        className="w-full max-h-[90vh] bg-white rounded-t-xl p-6 overflow-auto relative"
-                        onClick={(e) => e.stopPropagation()}
+                    <span className="px-2 text-sm">
+                      {selectedItems[expanded.id].quantity}
+                    </span>
+                    <button
+                      onClick={() => handleQuantity(expanded.id, 1)}
+                      className="px-2 text-lg"
                     >
-                        <h2 className="text-xl font-semibold mb-4">Review order</h2>
+                      +
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => handleAdd(expanded)}
+                    className="bg-black text-white px-4 py-2 rounded-full text-sm"
+                  >
+                    Add
+                  </button>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-                        <div className="space-y-2 text-sm">
-                            {Object.values(selectedItems).map((item) => (
-                                <div key={item.id} className="flex justify-between border-b pb-1">
-                                    <span>{item.name} × {item.quantity}</span>
-                                    <span>{item.price * item.quantity} EGP</span>
-                                </div>
-                            ))}
-                        </div>
+      {/* Review Order Modal */}
+      <AnimatePresence>
+        {showReview && (
+          <motion.div
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", stiffness: 120, damping: 20 }}
+            className="fixed inset-x-0 bottom-0 bg-white text-black rounded-t-3xl shadow-2xl z-[200] max-h-[90vh] overflow-y-auto"
+          >
+            <div className="p-6 space-y-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold">Review Order</h2>
+                <button onClick={() => setShowReview(false)}>
+                  <X className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
 
-                        <div className="mt-4 text-sm text-gray-600">
-                            <p><strong>notes:</strong> {notes || "-"}</p>
-                        </div>
+              {/* Items */}
+              <div className="space-y-4">
+                {Object.values(selectedItems).map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex justify-between items-center border-b pb-2"
+                  >
+                    <div>
+                      <p className="font-medium">{item.name}</p>
+                      <p className="text-sm text-gray-600">
+                        {item.quantity} × {item.price} EGP
+                      </p>
+                    </div>
+                    <span className="font-semibold">
+                      {item.quantity * item.price} EGP
+                    </span>
+                  </div>
+                ))}
+              </div>
 
-                        <div className="mt-4 flex justify-between items-center text-lg font-bold">
-                            <span>Total:</span>
-                            <span className="text-green-600">{totalPrice} EGP</span>
-                        </div>
+              {/* Notes */}
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Add notes (e.g. no onions, extra spicy...)"
+                className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+              />
 
-                        <Button
-                            onClick={handleCreateOrder}
-                            disabled={isCreating}
-                            className="w-full mt-6"
-                        >
-                            Submit
-                        </Button>
-
-                        <button onClick={() => setShowReview(false)} className=" absolute top-2 right-2 text-2xl" ><Undo2 /></button>
-                    </motion.div>
-                </motion.div>
-            )}
-
-        </div>
-    )
+              {/* Total + Submit */}
+              <div className="flex justify-between items-center pt-4 border-t">
+                <span className="text-lg font-semibold">{total} EGP</span>
+                <button
+                  onClick={submitOrder}
+                  disabled={isCreating}
+                  className="bg-black text-white px-6 py-2 rounded-full font-medium hover:bg-gray-800 disabled:opacity-50"
+                >
+                  {isCreating ? "Placing..." : "Confirm Order"}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
 }
